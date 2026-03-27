@@ -26,6 +26,7 @@
 
 	<ItemGroup>
 		<PackageReference Include="Npgsql" Version="10.0.1" />
+		<PackageReference Include="Npgsql.NetTopologySuite" Version="10.0.0" />
 	</ItemGroup>
 
 	<ItemGroup>

@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using Pansynchro.Core;
+using Pansynchro.Core.CustomTypes;
 using Pansynchro.Core.DataDict;
 using Pansynchro.Core.Readers;
 
@@ -13,6 +14,8 @@ namespace Pansynchro.Connectors.TextFile.WholeFile
 {
 	class TextFileReader : IReader, ISourcedConnector, IRandomStreamReader
 	{
+		public string Provider => TextFileConnector.ProviderName;
+
 		private IDataSource? _source;
 		private readonly string _config;
 
@@ -31,10 +34,16 @@ namespace Pansynchro.Connectors.TextFile.WholeFile
 			async IAsyncEnumerable<DataStream> Impl()
 			{
 				await foreach (var (name, reader) in _source.GetTextAsync()) {
+					var streamName = new StreamDescription(null, name);
+					var data = new DataStream(streamName, StreamSettings.None, new WholeFileReader(name, await reader.ReadToEndAsync()));
 					try {
-						yield return new DataStream(new(null, name), StreamSettings.None, new WholeFileReader(name, await reader.ReadToEndAsync()));
+						if (source.HasStream(name)) {
+							yield return CustomTypeAccessorTransformations.ApplyForRead(data, source.GetStream(name), Provider);
+						} else {
+							yield return data;
+						}
 					} finally {
-						reader.Dispose();
+						data.Reader.Dispose();
 					}
 				}
 			}
@@ -48,7 +57,9 @@ namespace Pansynchro.Connectors.TextFile.WholeFile
 			var values = _source.GetTextAsync(name)
 				.Select(async (System.IO.TextReader r, CancellationToken t) => new WholeFileReader(name, await r.ReadToEndAsync(t)));
 			var result = new GroupingReader(values);
-			return Task.FromResult<DataStream>(new(StreamDescription.Parse(name), StreamSettings.None, result));
+			var stream = source.GetStream(name);
+			var data = new DataStream(StreamDescription.Parse(name), StreamSettings.None, result);
+			return Task.FromResult(CustomTypeAccessorTransformations.ApplyForRead(data, stream, Provider));
 		}
 
 		void ISourcedConnector.SetDataSource(IDataSource source) => _source = source;

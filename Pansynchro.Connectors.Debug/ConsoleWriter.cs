@@ -11,6 +11,8 @@ namespace Pansynchro.Connectors.Debug
 {
 	public class ConsoleWriter : IWriter
 	{
+		public string Provider => ConsoleConnector.ProviderName;
+
 		public async Task Sync(IAsyncEnumerable<DataStream> streams, DataDictionary dest)
 		{
 			EventLog.Instance.AddStartSyncEvent();

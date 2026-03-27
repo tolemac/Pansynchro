@@ -2,6 +2,7 @@
 using System.Runtime.CompilerServices;
 
 using Npgsql;
+using Npgsql.NetTopologySuite;
 
 using Pansynchro.Core;
 using Pansynchro.Core.Connectors;
@@ -11,7 +12,8 @@ namespace Pansynchro.Connectors.Postgres
 {
 	public class PostgresConnector : ConnectorCore
 	{
-		public override string Name => "Postgres";
+		public static string ProviderName => "Postgres";
+		public override string Name => ProviderName;
 
 		public override Capabilities Capabilities => Capabilities.ALL;
 
@@ -28,6 +30,7 @@ namespace Pansynchro.Connectors.Postgres
 		[ModuleInitializer]
 		public static void Register()
 		{
+			NpgsqlConnection.GlobalTypeMapper.UseNetTopologySuite();
 			ConnectorRegistry.RegisterConnector(new PostgresConnector());
 		}
 	}

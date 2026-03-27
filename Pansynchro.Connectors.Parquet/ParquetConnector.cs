@@ -9,7 +9,8 @@ namespace Pansynchro.Connectors.Parquet
 {
 	public class ParquetConnector : ConnectorCore
 	{
-		public override string Name => "Parquet";
+		public static string ProviderName => "Parquet";
+		public override string Name => ProviderName;
 
 		public override Capabilities Capabilities => Capabilities.Reader | Capabilities.Writer | Capabilities.Analyzer | Capabilities.Configurator | Capabilities.RandomAccessReader;
 

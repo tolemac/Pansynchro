@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using Json.Path;
 
 using Pansynchro.Core;
+using Pansynchro.Core.CustomTypes;
 using Pansynchro.Core.DataDict;
 using Pansynchro.Core.Readers;
 
@@ -20,6 +21,8 @@ namespace Pansynchro.Connectors.TextFile.JSON
 {
 	public class JsonReader : IReader, ISourcedConnector, IRandomStreamReader
 	{
+		public string Provider => JsonConnector.ProviderName;
+
 		private readonly string _config;
 		private IDataSource? _source;
 
@@ -60,7 +63,9 @@ namespace Pansynchro.Connectors.TextFile.JSON
 				if (!source.HasStream(name)) {
 					throw new MissingDataException(name);
 				}
-				yield return BuildArrayStream(name, data, source.GetStream(name));
+				var streamDef = source.GetStream(name);
+				var streamData = BuildArrayStream(name, data, streamDef);
+				yield return CustomTypeAccessorTransformations.ApplyForRead(streamData, streamDef, JsonConnector.ProviderName);
 			} else {
 				foreach (var ls in BuildObjectStreams(name, data, strategy.Streams.ToDictionary(s => s.Name), source)) {
 					yield return ls;
@@ -130,10 +135,11 @@ namespace Pansynchro.Connectors.TextFile.JSON
 						throw new MissingDataException(name);
 					}
 					var fieldName = dict.GetStream(streamName.ToString()).Fields[0].Name;
+					var streamDef = dict.GetStream(streamName.ToString());
 					if (streamData is JsonArray arr) {
-						yield return new DataStream(streamName, 0, new JsonArrayReader(arr, fieldName));
+						yield return CustomTypeAccessorTransformations.ApplyForRead(new DataStream(streamName, 0, new JsonArrayReader(arr, fieldName)), streamDef, JsonConnector.ProviderName);
 					} else if (streamData != null) {
-						yield return new DataStream(streamName, 0, new SingleValueReader(fieldName, streamData));
+						yield return CustomTypeAccessorTransformations.ApplyForRead(new DataStream(streamName, 0, new SingleValueReader(fieldName, streamData)), streamDef, JsonConnector.ProviderName);
 					} else if (query.Required) {
 						throw new ValidationException($"The query '{query.Path}' did not return any value on stream '{ns}'");
 					}

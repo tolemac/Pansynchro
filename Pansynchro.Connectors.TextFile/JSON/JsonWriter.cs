@@ -9,6 +9,7 @@ using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 
 using Pansynchro.Core;
+using Pansynchro.Core.CustomTypes;
 using Pansynchro.Core.DataDict;
 using Pansynchro.Core.DataDict.TypeSystem;
 using Pansynchro.Core.Errors;
@@ -17,6 +18,8 @@ using Pansynchro.Core.EventsSystem;
 namespace Pansynchro.Connectors.TextFile.JSON;
 public class JsonWriter : IWriter, ISinkConnector
 {
+	public string Provider => JsonConnector.ProviderName;
+
 	private IDataSink? _sink;
 
 	public JsonWriter(string config)
@@ -31,16 +34,18 @@ public class JsonWriter : IWriter, ISinkConnector
 		}
 		EventLog.Instance.AddStartSyncEvent();
 		await foreach (var (name, settings, stream) in streams) {
+			IDataReader outReader = stream;
 			try {
 				var defn = dest.GetStream(name, NameStrategy.Get(NameStrategyType.Identity));
+				outReader = CustomTypeAccessorTransformations.ApplyForWrite(new DataStream(name, settings, stream), defn, Provider).Reader;
 				using var tw = await _sink.WriteText(name.ToString());
-				Write(stream, tw, defn);
+				Write(outReader, tw, defn);
 			} catch (Exception ex) {
 				EventLog.Instance.AddErrorEvent(ex, name);
 				if (!ErrorManager.ContinueOnError)
 					throw;
 			} finally {
-				stream.Dispose();
+				outReader.Dispose();
 			}
 		}
 		EventLog.Instance.AddEndSyncEvent();
@@ -120,6 +125,8 @@ public class JsonWriter : IWriter, ISinkConnector
 				=> (r, o) => o.Add(fieldName, r.GetDateTime(index)),
 			TypeTag.Guid => (r, o) => o.Add(fieldName, r.GetGuid(index)),
 			TypeTag.Json => (r, o) => o.Add(fieldName, JsonNode.Parse(r.GetString(index))),
+			TypeTag.Geometry or TypeTag.Geography => (r, o) => o.Add(fieldName,
+				r.GetValue(index) is CanonicalGeo geo ? geo.ToText() : r.GetValue(index).ToString()),
 			_ => throw new NotImplementedException($"No JSON extractor implemented for '{type.Type}'.")
 		};
 

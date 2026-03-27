@@ -9,6 +9,7 @@ using Avro.File;
 using Avro.Generic;
 
 using Pansynchro.Core;
+using Pansynchro.Core.CustomTypes;
 using Pansynchro.Core.DataDict;
 using Pansynchro.Core.Helpers;
 using Pansynchro.Core.Readers;
@@ -17,6 +18,8 @@ namespace Pansynchro.Connectors.Avro
 {
 	public class AvroReader : IReader, ISourcedConnector, IRandomStreamReader
 	{
+		public string Provider => AvroConnector.ProviderName;
+
 		private IDataSource? _source;
 
 		public void SetDataSource(IDataSource source)
@@ -32,7 +35,13 @@ namespace Pansynchro.Connectors.Avro
 			await foreach (var (_, stream) in _source.GetDataAsync()) {
 				using var reader = DataFileReader<GenericRecord>.OpenReader(stream);
 				var schema = (RecordSchema)reader.GetSchema();
-				yield return new DataStream(new(schema.Namespace, schema.Name), StreamSettings.None, new AvroDataReader(reader));
+				var streamName = new StreamDescription(schema.Namespace, schema.Name);
+				var data = new DataStream(streamName, StreamSettings.None, new AvroDataReader(reader));
+				if (source.HasStream(streamName.ToString())) {
+					yield return CustomTypeAccessorTransformations.ApplyForRead(data, source.GetStream(streamName.ToString()), Provider);
+				} else {
+					yield return data;
+				}
 			}
 		}
 
@@ -46,7 +55,8 @@ namespace Pansynchro.Connectors.Avro
 			var stream = source.GetStream(name);
 			var readers = _source.GetDataAsync(name)
 				.Select(s => new AvroDataReader(DataFileReader<GenericRecord>.OpenReader(s)));
-			return Task.FromResult<DataStream>(new(stream.Name, StreamSettings.None, new GroupingReader(readers)));
+			var data = new DataStream(stream.Name, StreamSettings.None, new GroupingReader(readers));
+			return Task.FromResult(CustomTypeAccessorTransformations.ApplyForRead(data, stream, Provider));
 		}
 
 		public void Dispose()

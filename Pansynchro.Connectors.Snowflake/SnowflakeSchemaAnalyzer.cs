@@ -288,6 +288,8 @@ where table_catalog = '{DatabaseName}'
 			{ "BOOLEAN", TypeTag.Boolean },
 			{ "BINARY", TypeTag.Blob },
 			{ "VARBINARY", TypeTag.Blob },
+			{ "GEOGRAPHY", TypeTag.Geography },
+			{ "GEOMETRY", TypeTag.Geometry },
 			{ "DATE", TypeTag.DateTime },
 			{ "DATETIME", TypeTag.DateTime },
 			{ "TIME", TypeTag.DateTime },
@@ -302,7 +304,7 @@ where table_catalog = '{DatabaseName}'
 			if (TYPE_MAP.TryGetValue(v, out var result)) {
 				return result;
 			}
-			throw new ArgumentException($"Unknown SQL data type '{v}'.");
+			return UnknownSqlType("Snowflake schema analyzer", v);
 		}
 
 		protected override string GetTableRowCount(StreamDescription name)

@@ -1,5 +1,6 @@
 ﻿using Microsoft.Data.Sqlite;
 using Pansynchro.Core;
+using Pansynchro.Core.CustomTypes;
 using Pansynchro.Core.DataDict;
 using Pansynchro.Core.Errors;
 using Pansynchro.Core.EventsSystem;
@@ -13,6 +14,8 @@ namespace Pansynchro.Connectors.Sqlite
 {
 	public class SqliteWriter : IWriter
 	{
+		public string Provider => SqliteConnector.ProviderName;
+
 		private readonly SqliteConnection _conn;
 
 		private DataDictionary _schema = null!;
@@ -31,7 +34,12 @@ namespace Pansynchro.Connectors.Sqlite
 			EventLog.Instance.AddStartSyncEvent();
 			await foreach (var (name, averageSize, reader) in streams) {
 				EventLog.Instance.AddStartSyncStreamEvent(name);
+				IDataReader outReader = reader;
 				try {
+					var streamDef = _schema.GetStream(name.ToString());
+					outReader = CustomTypeAccessorTransformations
+						.ApplyForWrite(new DataStream(name, averageSize, reader), streamDef, Provider)
+						.Reader;
 					var lineReader = BuildReader(name);
 					ulong progress = 0;
 					var finished = false;
@@ -39,11 +47,11 @@ namespace Pansynchro.Connectors.Sqlite
 						var tran = _conn.BeginTransaction();
 						for (int i = 0; i < BATCH_SIZE; ++i) {
 							++progress;
-							if (!reader.Read()) {
+							if (!outReader.Read()) {
 								finished = true;
 								break;
 							}
-							lineReader(reader, tran);
+							lineReader(outReader, tran);
 						}
 						tran.Commit();
 					}
@@ -52,7 +60,7 @@ namespace Pansynchro.Connectors.Sqlite
 					if (!ErrorManager.ContinueOnError)
 						throw;
 				} finally {
-					reader.Dispose();
+					outReader.Dispose();
 				}
 				EventLog.Instance.AddEndSyncStreamEvent(name);
 			}

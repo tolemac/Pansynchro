@@ -7,6 +7,8 @@ namespace Pansynchro.Connectors.Snowflake
 {
 	public class SnowflakeReader : SqlDbReader
 	{
+		public override string Provider => SnowflakeConnector.ProviderName;
+
 		public SnowflakeReader(string connectionString) : base(connectionString)
 		{ }
 

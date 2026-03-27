@@ -10,6 +10,8 @@ namespace Pansynchro.Connectors.FileSystem;
 
 public class FileSystemReader : IReader, IRandomStreamReader
 {
+	public string Provider => FileSystemConnector.ProviderName;
+
 	private readonly FileSystemConfigurator _configurator;
 
 	public FileSystemReader(string config)

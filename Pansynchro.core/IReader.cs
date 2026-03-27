@@ -11,6 +11,7 @@ namespace Pansynchro.Core
 {
 	public interface IReader : IDisposable
 	{
+		string Provider { get; }
 		IAsyncEnumerable<DataStream> ReadFrom(DataDictionary source);
 		Task<Exception?> TestConnection();
 	}

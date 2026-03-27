@@ -11,6 +11,7 @@ using Avro.File;
 using Avro.Generic;
 
 using Pansynchro.Core;
+using Pansynchro.Core.CustomTypes;
 using Pansynchro.Core.DataDict;
 using Pansynchro.Core.DataDict.TypeSystem;
 using Pansynchro.Core.Errors;
@@ -20,6 +21,8 @@ namespace Pansynchro.Connectors.Avro
 {
 	public class AvroWriter : IWriter, ISinkConnector
 	{
+		public string Provider => AvroConnector.ProviderName;
+
 		private IDataSink? _sink;
 
 		public async Task Sync(IAsyncEnumerable<DataStream> streams, DataDictionary dest)
@@ -30,17 +33,20 @@ namespace Pansynchro.Connectors.Avro
 			}
 			await foreach (var (name, _, reader) in streams) {
 				EventLog.Instance.AddStartSyncStreamEvent(name);
+				IDataReader outReader = reader;
 				try {
+					var streamDef = dest.GetStream(name.ToString());
+					outReader = CustomTypeAccessorTransformations.ApplyForWrite(new DataStream(name, StreamSettings.None, reader), streamDef, Provider).Reader;
 					using var stream = await _sink.WriteData(name.ToString());
-					var schema = BuildAvroSchema(dest.GetStream(name.ToString()));
+					var schema = BuildAvroSchema(streamDef);
 					using var writer = DataFileWriter<GenericRecord>.OpenWriter(new GenericDatumWriter<GenericRecord>(schema), stream, Codec.CreateCodec(Codec.Type.Deflate), false);
-					WriteReader(reader, writer, stream, schema);
+					WriteReader(outReader, writer, stream, schema);
 				} catch (Exception ex) {
 					EventLog.Instance.AddErrorEvent(ex, name);
 					if (!ErrorManager.ContinueOnError)
 						throw;
 				} finally {
-					reader.Dispose();
+					outReader.Dispose();
 				}
 				EventLog.Instance.AddEndSyncStreamEvent(name);
 			}
@@ -108,6 +114,7 @@ namespace Pansynchro.Connectors.Avro
 					TypeTag.Blob or TypeTag.Binary or TypeTag.Varbinary => "bytes",
 					TypeTag.Ntext or TypeTag.Text or TypeTag.Varchar or TypeTag.Nvarchar or TypeTag.Char =>
 						"string",
+					TypeTag.Geometry or TypeTag.Geography => "string",
 					TypeTag.Single or TypeTag.Float => "float",
 					TypeTag.Double => "double",
 					TypeTag.Guid => JsonObject.Parse("{\"type\": \"string\", \"logicalType\": \"uuid\"}")!,

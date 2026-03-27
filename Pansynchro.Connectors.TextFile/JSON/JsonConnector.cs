@@ -10,7 +10,8 @@ namespace Pansynchro.Connectors.TextFile.JSON
 {
 	public class JsonConnector : ConnectorCore
 	{
-		public override string Name => "JSON";
+		public static string ProviderName => "JSON";
+		public override string Name => ProviderName;
 
 		public override Capabilities Capabilities
 			=> Capabilities.Reader | Capabilities.Writer | Capabilities.Analyzer | Capabilities.Configurator | Capabilities.RandomAccessReader;

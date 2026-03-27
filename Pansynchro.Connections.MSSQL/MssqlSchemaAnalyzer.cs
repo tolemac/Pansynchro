@@ -130,6 +130,7 @@ where t.is_user_defined = 1";
 			{ "image", TypeTag.Blob},
 			{ "int", TypeTag.Int },
 			{ "sys.geography", TypeTag.Geography},
+			{ "sys.geometry", TypeTag.Geometry},
 			{ "sys.hierarchyid", TypeTag.HierarchyID},
 			{ "money", TypeTag.Money},
 			{ "nchar", TypeTag.Nchar},
@@ -155,7 +156,7 @@ where t.is_user_defined = 1";
 			if (TYPE_MAP.TryGetValue(v, out var result)) {
 				return result;
 			}
-			throw new ArgumentException($"Unknown SQL data type '{v}'.");
+			return UnknownSqlType("MSSQL schema analyzer", v);
 		}
 
 		const string READ_DEPS =
@@ -232,9 +233,9 @@ order by TableName";
 
 		private static string? TypeInfo(TypeTag type, DataRow row) => type switch {
 			TypeTag.Varbinary or TypeTag.Varchar or TypeTag.Char or TypeTag.Binary => (bool)row["IsLong"] ? null : row["ColumnSize"].ToString(),
-			TypeTag.Nvarchar or TypeTag.Nchar => (bool)row["IsLong"] ? null : ((int)row["ColumnSize"] / 2).ToString(CultureInfo.InvariantCulture),
-			TypeTag.Time or TypeTag.DateTimeTZ or TypeTag.VarDateTime => ((byte)row["NumericScale"]).ToString(CultureInfo.InvariantCulture),
-			TypeTag.Decimal or TypeTag.Float => $"{((byte)row["NumericPrecision"])},{((byte)row["NumericScale"])}",
+			TypeTag.Nvarchar or TypeTag.Nchar => (bool)row["IsLong"] ? null : (Convert.ToInt32(row["ColumnSize"], CultureInfo.InvariantCulture) / 2).ToString(CultureInfo.InvariantCulture),
+			TypeTag.Time or TypeTag.DateTimeTZ or TypeTag.VarDateTime => Convert.ToString(row["NumericScale"], CultureInfo.InvariantCulture),
+			TypeTag.Decimal or TypeTag.Float => $"{Convert.ToString(row["NumericPrecision"], CultureInfo.InvariantCulture)},{Convert.ToString(row["NumericScale"], CultureInfo.InvariantCulture)}",
 			_ => throw new ArgumentOutOfRangeException($"Type tag '{type}' does not support extended info")
 		};
 	}

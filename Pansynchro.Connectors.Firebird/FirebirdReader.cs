@@ -8,6 +8,8 @@ namespace Pansynchro.Connectors.Firebird
 {
 	public class FirebirdReader : SqlDbReader
 	{
+		public override string Provider => FirebirdConnector.ProviderName;
+
 		public FirebirdReader(string connectionString) : base(connectionString)
 		{
 			Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);

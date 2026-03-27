@@ -11,7 +11,8 @@ namespace Pansynchro.Connectors.MSSQL
 {
 	public class MSSQLConnector : ConnectorCore
 	{
-		public override string Name => "MSSQL";
+		public static string ProviderName => "MSSQL";
+		public override string Name => ProviderName;
 
 		public override Capabilities Capabilities => Capabilities.ALL;
 

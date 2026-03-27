@@ -76,11 +76,9 @@ namespace Pansynchro.SQL
 			if (type == typeof(TimeSpan)) {
 				return 5;
 			}
-			// no actual type check to remove dependency on SQL Server specific assembly
-			if (type.Name is "SqlHierarchyId" or "SqlGeography") {
-				return value.ToString()!.Length;
-			}
-			throw new ArgumentException($"Unsupported data type '{type}'.");
+
+			// fallback 
+			return value.ToString()!.Length;
 		}
 	}
 }

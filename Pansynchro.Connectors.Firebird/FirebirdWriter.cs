@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 
 using FirebirdSql.Data.FirebirdClient;
 using Pansynchro.Core;
+using Pansynchro.Core.CustomTypes;
 using Pansynchro.Core.DataDict;
 using Pansynchro.Core.Errors;
 using Pansynchro.Core.EventsSystem;
@@ -15,6 +16,8 @@ namespace Pansynchro.Connectors.Firebird
 {
 	public class FirebirdWriter : IWriter
 	{
+		public string Provider => FirebirdConnector.ProviderName;
+
 		private readonly FbConnection _conn;
 
 		private DataDictionary _schema = null!;
@@ -34,7 +37,12 @@ namespace Pansynchro.Connectors.Firebird
 			EventLog.Instance.AddStartSyncEvent();
 			await foreach (var (name, averageSize, reader) in streams) {
 				EventLog.Instance.AddStartSyncStreamEvent(name);
+				IDataReader outReader = reader;
 				try {
+					var streamDef = _schema.GetStream(name.ToString());
+					outReader = CustomTypeAccessorTransformations
+						.ApplyForWrite(new DataStream(name, averageSize, reader), streamDef, Provider)
+						.Reader;
 					var lineReader = BuildReader(name);
 					ulong progress = 0;
 					var finished = false;
@@ -42,11 +50,11 @@ namespace Pansynchro.Connectors.Firebird
 						var tran = _conn.BeginTransaction();
 						for (int i = 0; i < BATCH_SIZE; ++i) {
 							++progress;
-							if (!reader.Read()) {
+							if (!outReader.Read()) {
 								finished = true;
 								break;
 							}
-							lineReader(reader, tran);
+							lineReader(outReader, tran);
 						}
 						tran.Commit();
 					}
@@ -55,7 +63,7 @@ namespace Pansynchro.Connectors.Firebird
 					if (!ErrorManager.ContinueOnError)
 						throw;
 				} finally {
-					reader.Dispose();
+					outReader.Dispose();
 				}
 				EventLog.Instance.AddEndSyncStreamEvent(name);
 			}

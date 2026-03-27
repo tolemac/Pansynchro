@@ -1,5 +1,6 @@
 ﻿using HtmlAgilityPack;
 using Pansynchro.Core;
+using Pansynchro.Core.CustomTypes;
 using Pansynchro.Core.DataDict;
 using Pansynchro.Core.Readers;
 using Pansynchro.Core.Transformations;
@@ -15,6 +16,8 @@ using System.Threading.Tasks;
 namespace Pansynchro.Connectors.TextFile.HTML;
 public class HtmlReader : IReader, ISourcedConnector
 {
+	public string Provider => HtmlConnector.ProviderName;
+
 	private IDataSource? _source;
 	private string _config;
 
@@ -75,7 +78,8 @@ public class HtmlReader : IReader, ISourcedConnector
 				HtmlConfigurator.DataType.Expressions => BuildDataStreams(nodes, query.Expressions!),
 				_ => throw new NotImplementedException()
 			};
-			yield return new DataStream(new StreamDescription(ns, name), StreamSettings.None, new EnumerableArrayReader(data, streamDef));
+			var streamData = new DataStream(new StreamDescription(ns, name), StreamSettings.None, new EnumerableArrayReader(data, streamDef));
+			yield return CustomTypeAccessorTransformations.ApplyForRead(streamData, streamDef, HtmlConnector.ProviderName);
 		}
 	}
 
@@ -110,6 +114,6 @@ public class HtmlReader : IReader, ISourcedConnector
 
 	public void Dispose()
 	{
-		throw new NotImplementedException();
+		GC.SuppressFinalize(this);
 	}
 }

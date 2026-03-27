@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 using Parquet.Data;
@@ -47,13 +48,17 @@ namespace Pansynchro.Connectors.Parquet
 		{
 			using var lStream = StreamHelper.SeekableStream(stream);
 			using var reader = await PReader.CreateAsync(lStream);
-			var fields = reader.Schema.GetDataFields().Select(AnalyzeField).ToArray();
+			var geoHints = ReadGeoHints(reader);
+			var fields = reader.Schema.GetDataFields().Select(f => AnalyzeField(f, geoHints)).ToArray();
 			return new StreamDefinition(new StreamDescription(null, name), fields, Array.Empty<string>());
 		}
 
-		private static FieldDefinition AnalyzeField(DataField field)
+		private static FieldDefinition AnalyzeField(DataField field, IReadOnlyDictionary<string, TypeTag> geoHints)
 		{
 			TypeTag type;
+			if (TryGetGeospatialType(field, geoHints, out var geoType)) {
+				type = geoType;
+			} else
 			if (field.SchemaType == SchemaType.Data) {
 				if (field.ClrType == typeof(bool)) type = TypeTag.Boolean;
 				else if (field.ClrType == typeof(byte)) type = TypeTag.Byte;
@@ -79,6 +84,101 @@ namespace Pansynchro.Connectors.Parquet
 				fType = new CollectionField(fType, CollectionType.Array, false);
 			}
 			return new FieldDefinition(field.Name, fType);
+		}
+
+		private static bool TryGetGeospatialType(DataField field, IReadOnlyDictionary<string, TypeTag> geoHints, out TypeTag type)
+		{
+			if (geoHints.TryGetValue(field.Name, out type)) {
+				return true;
+			}
+
+			var logicalType = field.GetType().GetProperty("LogicalType")?.GetValue(field);
+			if (logicalType == null) {
+				type = TypeTag.Unstructured;
+				return false;
+			}
+
+			var logicalName = logicalType.GetType().Name;
+			if (logicalName.Contains("Geography", StringComparison.OrdinalIgnoreCase)) {
+				type = TypeTag.Geography;
+				return true;
+			}
+			if (logicalName.Contains("Geometry", StringComparison.OrdinalIgnoreCase)) {
+				type = TypeTag.Geometry;
+				return true;
+			}
+
+			var logicalText = logicalType.ToString() ?? string.Empty;
+			if (logicalText.Contains("GEOGRAPHY", StringComparison.OrdinalIgnoreCase)) {
+				type = TypeTag.Geography;
+				return true;
+			}
+			if (logicalText.Contains("GEOMETRY", StringComparison.OrdinalIgnoreCase)) {
+				type = TypeTag.Geometry;
+				return true;
+			}
+
+			type = TypeTag.Unstructured;
+			return false;
+		}
+
+		private static IReadOnlyDictionary<string, TypeTag> ReadGeoHints(PReader reader)
+		{
+			var result = new Dictionary<string, TypeTag>(StringComparer.OrdinalIgnoreCase);
+			var metadataObj = reader.GetType().GetProperty("CustomMetadata")?.GetValue(reader);
+			if (metadataObj is not IDictionary<string, string> metadata || !metadata.TryGetValue("geo", out var geoJson)) {
+				return result;
+			}
+
+			try {
+				using var doc = JsonDocument.Parse(geoJson);
+				if (!doc.RootElement.TryGetProperty("columns", out var columns) || columns.ValueKind != JsonValueKind.Object) {
+					return result;
+				}
+
+				foreach (var prop in columns.EnumerateObject()) {
+					result[prop.Name] = InferGeoTypeFromColumnMetadata(prop.Value);
+				}
+			} catch {
+				return result;
+			}
+
+			return result;
+		}
+
+		private static TypeTag InferGeoTypeFromColumnMetadata(JsonElement columnMetadata)
+		{
+			if (columnMetadata.TryGetProperty("type", out var typeNode) &&
+				typeNode.ValueKind == JsonValueKind.String) {
+				var typeName = typeNode.GetString() ?? string.Empty;
+				if (typeName.Contains("geography", StringComparison.OrdinalIgnoreCase)) {
+					return TypeTag.Geography;
+				}
+				if (typeName.Contains("geometry", StringComparison.OrdinalIgnoreCase)) {
+					return TypeTag.Geometry;
+				}
+			}
+
+			if (columnMetadata.TryGetProperty("edges", out var edgesNode) &&
+				edgesNode.ValueKind == JsonValueKind.String) {
+				var edges = edgesNode.GetString() ?? string.Empty;
+				if (!edges.Equals("planar", StringComparison.OrdinalIgnoreCase) &&
+					!edges.Equals("linear", StringComparison.OrdinalIgnoreCase)) {
+					return TypeTag.Geography;
+				}
+			}
+
+			if (columnMetadata.TryGetProperty("edge_interpolation", out var interpolationNode) &&
+				interpolationNode.ValueKind == JsonValueKind.String) {
+				var interpolation = interpolationNode.GetString() ?? string.Empty;
+				if (!string.IsNullOrWhiteSpace(interpolation) &&
+					!interpolation.Equals("planar", StringComparison.OrdinalIgnoreCase) &&
+					!interpolation.Equals("linear", StringComparison.OrdinalIgnoreCase)) {
+					return TypeTag.Geography;
+				}
+			}
+
+			return TypeTag.Geometry;
 		}
 
 		public void SetDataSource(IDataSource source) => _source = source;

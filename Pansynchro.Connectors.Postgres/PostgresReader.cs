@@ -8,6 +8,8 @@ namespace Pansynchro.Connectors.Postgres
 {
 	public class PostgresReader : SqlDbReader
 	{
+		public override string Provider => PostgresConnector.ProviderName;
+
 		public PostgresReader(string connectionString) : base(connectionString)
 		{ }
 

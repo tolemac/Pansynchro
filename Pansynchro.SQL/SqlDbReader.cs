@@ -8,6 +8,7 @@ using System.Linq;
 using System.Threading.Tasks;
 
 using Pansynchro.Core;
+using Pansynchro.Core.CustomTypes;
 using Pansynchro.Core.DataDict;
 using Pansynchro.Core.EventsSystem;
 using Pansynchro.Core.Incremental;
@@ -42,6 +43,8 @@ namespace Pansynchro.SQL
 		}
 
 		public Dictionary<StreamDescription, string>? IncrementalPlan => _incrementalPlan;
+
+		public abstract string Provider { get; }
 
 		protected abstract ISqlFormatter SqlFormatter { get; }
 
@@ -161,9 +164,10 @@ namespace Pansynchro.SQL
 					settings |= StreamSettings.UseRcf;
 				}
 			}
-			return new DataStream(stream.Name, settings, await getReader(stream));
+			var result = new DataStream(stream.Name, settings, await getReader(stream));
+			return CustomTypeAccessorTransformations.ApplyForRead(result, stream, Provider);			
 		}
-
+				
 		public void StreamDone(StreamDescription name)
 		{
 			_incrementalReaders.TryGetValue(name, out var incr);

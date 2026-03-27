@@ -12,7 +12,8 @@ using System.Threading.Tasks;
 namespace Pansynchro.Connectors.TextFile.HTML;
 internal class HtmlConnector : ConnectorCore
 {
-	public override string Name => "HTML";
+	public static string ProviderName => "HTML";
+	public override string Name => ProviderName;
 
 	public override Capabilities Capabilities
 		=> Capabilities.Reader | Capabilities.Analyzer | Capabilities.Configurator;

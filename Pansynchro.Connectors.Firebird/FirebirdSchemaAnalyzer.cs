@@ -27,7 +27,8 @@ namespace Pansynchro.Connectors.Firebird
 @"select
     f.RDB$RELATION_NAME as TableName, f.RDB$FIELD_NAME name,
     fd.RDB$FIELD_TYPE type, fd.RDB$FIELD_SCALE scale, fd.RDB$FIELD_SUB_TYPE, fd.RDB$DIMENSIONS,
-    1 - coalesce(f.RDB$NULL_FLAG, 0) nullable, fd.RDB$FIELD_PRECISION, fd.RDB$CHARACTER_LENGTH
+	1 - coalesce(f.RDB$NULL_FLAG, 0) nullable, fd.RDB$FIELD_PRECISION, fd.RDB$CHARACTER_LENGTH,
+	trim(f.RDB$FIELD_SOURCE) as FieldSource
 from rdb$relation_fields f
 join rdb$relations r on f.RDB$RELATION_NAME = r.RDB$RELATION_NAME
 join RDB$FIELDS fd on fd.RDB$FIELD_NAME = f.RDB$FIELD_SOURCE
@@ -61,9 +62,34 @@ where
 
 		private static IFieldType GetFieldType(IDataReader reader)
 		{
+			var fieldSource = reader.IsDBNull(9) ? null : reader.GetString(9);
+			if (TryGetGeoTypeFromFieldSource(fieldSource, out var geoType)) {
+				return new BasicField(geoType, reader.GetInt16(6) == 1, null, false);
+			}
+
 			var (tag, info) = GetFieldTypeDefinition(reader);
 			var result = new BasicField(tag, reader.GetInt16(6) == 1, info, false);
 			return reader.IsDBNull(5) ? result : new CollectionField(result, CollectionType.Array, false);
+		}
+
+		private static bool TryGetGeoTypeFromFieldSource(string? fieldSource, out TypeTag type)
+		{
+			type = TypeTag.Unstructured;
+			if (string.IsNullOrWhiteSpace(fieldSource)) {
+				return false;
+			}
+
+			var source = fieldSource.Trim();
+			if (source.Equals("GEOMETRY", StringComparison.OrdinalIgnoreCase)) {
+				type = TypeTag.Geometry;
+				return true;
+			}
+			if (source.Equals("GEOGRAPHY", StringComparison.OrdinalIgnoreCase)) {
+				type = TypeTag.Geography;
+				return true;
+			}
+
+			return false;
 		}
 
 		private static (TypeTag tag, string? info) GetFieldTypeDefinition(IDataReader reader)
@@ -87,7 +113,7 @@ where
 					return (reader.GetInt16(4) switch {
 						0 => TypeTag.Char,
 						1 => TypeTag.Binary,
-						_ => throw new ArgumentException($"Unsupported blob subtype {reader.GetInt16(4)}.")
+						_ => UnknownSqlType("Firebird schema analyzer (type code 14)", $"blob subtype {reader.GetInt16(4)}")
 					}, reader.GetInt16(8).ToString());
 				case 16: return (TypeTag.Long, null);
 				case 23: return (TypeTag.Boolean, null);
@@ -102,15 +128,15 @@ where
 					return (reader.GetInt16(4) switch {
 						0 => TypeTag.Varchar,
 						1 => TypeTag.Varbinary,
-						_ => throw new ArgumentException($"Unsupported blob subtype {reader.GetInt16(4)}.")
+						_ => UnknownSqlType("Firebird schema analyzer (type code 37)", $"blob subtype {reader.GetInt16(4)}")
 					}, reader.GetInt16(8).ToString());
 				case 261:
 					return (reader.GetInt16(4) switch {
 						0 => TypeTag.Blob,
 						1 => TypeTag.Text,
-						_ => throw new ArgumentException($"Unsupported blob subtype {reader.GetInt16(4)}.")
+						_ => UnknownSqlType("Firebird schema analyzer (type code 261)", $"blob subtype {reader.GetInt16(4)}")
 					}, null);
-				default: throw new ArgumentException($"Unsupported data type {typeCode}.");
+				default: return (UnknownSqlType("Firebird schema analyzer", $"type code {typeCode}"), null);
 			}
 		}
 
@@ -166,11 +192,36 @@ where RDB$RELATION_TYPE = 0
 
 		private static IFieldType BuildFieldType(DataRow row)
 		{
+			if (TryGetGeoTypeFromDataTypeName(row, out var geoType)) {
+				var isNullable = (bool)row["AllowDBNull"];
+				return new BasicField(geoType, isNullable, null, false);
+			}
+
 			var fbType = (FbDbType)row["ProviderType"];
 			var info = HasInfo(fbType) ? TypeInfo(fbType, row) : null;
 			var type = GetTypeTag(fbType);
 			var nullable = (bool)row["AllowDBNull"];
 			return new BasicField(type, nullable, info, false);
+		}
+
+		private static bool TryGetGeoTypeFromDataTypeName(DataRow row, out TypeTag type)
+		{
+			type = TypeTag.Unstructured;
+			if (!row.Table.Columns.Contains("DataTypeName") || row["DataTypeName"] is not string raw) {
+				return false;
+			}
+
+			var dataTypeName = raw.Trim();
+			if (dataTypeName.Equals("GEOMETRY", StringComparison.OrdinalIgnoreCase)) {
+				type = TypeTag.Geometry;
+				return true;
+			}
+			if (dataTypeName.Equals("GEOGRAPHY", StringComparison.OrdinalIgnoreCase)) {
+				type = TypeTag.Geography;
+				return true;
+			}
+
+			return false;
 		}
 
 		private static TypeTag GetTypeTag(FbDbType type) => type switch {
@@ -192,7 +243,7 @@ where RDB$RELATION_TYPE = 0
 			FbDbType.TimeStampTZ => TypeTag.DateTimeTZ,
 			FbDbType.TimeTZ => TypeTag.TimeTZ,
 			FbDbType.Int128 => TypeTag.Int128,
-			_ => throw new DataException($"Data type {type} is not supported")
+			_ => UnknownSqlType("Firebird schema analyzer (provider type)", type.ToString())
 		};
 
 		private static readonly HashSet<FbDbType> _infoTypes = new() {

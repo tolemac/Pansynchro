@@ -14,6 +14,8 @@ namespace Pansynchro.Core.Incremental
 	// the data to a file-based IWriter rather than sending it directly to a database.
 	public class IncrementalToFileTransformer : IIncrementalWriter
 	{
+		public string Provider => _writer.Provider;
+
 		private StateManager? _state;
 		public Dictionary<StreamDescription, string> IncrementalData
 			=> _state?.IncrementalDataFor() ?? throw new DataException("Must call SetSourceName before retrieving IncrementalData");

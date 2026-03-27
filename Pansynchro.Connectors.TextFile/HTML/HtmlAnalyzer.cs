@@ -33,7 +33,8 @@ internal class HtmlAnalyzer : ISchemaAnalyzer, ISourcedConnector
 	{
 		var name = new StreamDescription(ns, query.Name);
 		if (query.Type != HtmlConfigurator.DataType.Expressions) {
-			return new StreamDefinition(name, [new("Value", new BasicField(TypeTag.Text, true, null, false))], []);
+			var inferred = InferGeoType(query.Name);
+			return new StreamDefinition(name, [new("Value", new BasicField(inferred, true, null, false))], []);
 		}
 		var fields = query.Expressions?.Select(BuildField).ToArray();
 		if (!(fields?.Length > 0)) {
@@ -43,7 +44,28 @@ internal class HtmlAnalyzer : ISchemaAnalyzer, ISourcedConnector
 	}
 
 	private FieldDefinition BuildField(HtmlConfigurator.ExpressionQuery query)
-		=> new FieldDefinition(query.Name, new BasicField(TypeTag.Text, true, null, false));
+		=> new FieldDefinition(query.Name, new BasicField(InferGeoType(query.Name), true, null, false));
+
+	private static TypeTag InferGeoType(string? fieldName)
+	{
+		if (string.IsNullOrWhiteSpace(fieldName)) {
+			return TypeTag.Text;
+		}
+
+		if (fieldName.Contains("geography", StringComparison.OrdinalIgnoreCase) ||
+			fieldName.Contains("geog", StringComparison.OrdinalIgnoreCase)) {
+			return TypeTag.Geography;
+		}
+
+		if (fieldName.Contains("geometry", StringComparison.OrdinalIgnoreCase) ||
+			fieldName.Contains("geom", StringComparison.OrdinalIgnoreCase) ||
+			fieldName.Contains("shape", StringComparison.OrdinalIgnoreCase) ||
+			fieldName.Contains("wkt", StringComparison.OrdinalIgnoreCase)) {
+			return TypeTag.Geometry;
+		}
+
+		return TypeTag.Text;
+	}
 
 	public void SetDataSource(IDataSource source)
 	{ }

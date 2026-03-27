@@ -16,6 +16,8 @@ namespace Pansynchro.Connectors.MSSQL
 {
 	public class MSSQLReader : SqlDbReader, IDisposable
 	{
+		public override string Provider => MSSQLConnector.ProviderName;
+
 		private readonly SqlConnection? _perfConn;
 		private readonly List<StreamDescription> _cdcStreams;
 		private readonly List<StreamDescription> _ctStreams;

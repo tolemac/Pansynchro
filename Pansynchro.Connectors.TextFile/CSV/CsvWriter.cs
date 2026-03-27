@@ -5,6 +5,7 @@ using System.IO;
 using System.Threading.Tasks;
 
 using Pansynchro.Core;
+using Pansynchro.Core.CustomTypes;
 using Pansynchro.Core.DataDict;
 using Pansynchro.Core.Errors;
 using Pansynchro.Core.EventsSystem;
@@ -13,6 +14,8 @@ namespace Pansynchro.Connectors.TextFile.CSV
 {
 	public class CsvWriter : IWriter, ISinkConnector
 	{
+		public string Provider => CsvConnector.ProviderName;
+
 		private readonly CsvConfigurator _config;
 		private IDataSink? _sink;
 		private readonly char[] _escapes;
@@ -34,15 +37,18 @@ namespace Pansynchro.Connectors.TextFile.CSV
 			}
 			EventLog.Instance.AddStartSyncEvent();
 			await foreach (var (name, settings, stream) in streams) {
+				IDataReader outReader = stream;
 				try {
+					var streamDef = dest.GetStream(name.ToString());
+					outReader = CustomTypeAccessorTransformations.ApplyForWrite(new DataStream(name, settings, stream), streamDef, Provider).Reader;
 					using var tw = await _sink!.WriteText(name.ToString());
-					Write(stream, tw);
+					Write(outReader, tw);
 				} catch (Exception ex) {
 					EventLog.Instance.AddErrorEvent(ex, name);
 					if (!ErrorManager.ContinueOnError)
 						throw;
 				} finally {
-					stream.Dispose();
+					outReader.Dispose();
 				}
 			}
 			EventLog.Instance.AddEndSyncEvent();
@@ -69,6 +75,9 @@ namespace Pansynchro.Connectors.TextFile.CSV
 				switch (value) {
 					case null:
 					case DBNull:
+						break;
+					case CanonicalGeo geo:
+						WriteString(geo.ToText(), tw);
 						break;
 					case int:
 					case long:

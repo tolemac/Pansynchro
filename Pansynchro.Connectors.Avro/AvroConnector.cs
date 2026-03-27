@@ -9,7 +9,8 @@ namespace Pansynchro.Connectors.Avro
 {
 	public class AvroConnector : ConnectorCore
 	{
-		public override string Name => "Avro";
+		public static string ProviderName => "Avro";
+		public override string Name => ProviderName;
 
 		public override Capabilities Capabilities => Capabilities.Reader | Capabilities.Writer | Capabilities.Analyzer | Capabilities.Configurator | Capabilities.RandomAccessReader;
 

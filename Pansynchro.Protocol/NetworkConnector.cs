@@ -8,9 +8,10 @@ using Pansynchro.Core.DataDict;
 
 namespace Pansynchro.Protocol
 {
-	class NetworkConnector : ConnectorCore
+	public class NetworkConnector : ConnectorCore
 	{
-		public override string Name => "Network";
+		public static string ProviderName => "Network";
+		public override string Name => ProviderName;
 
 		public override Capabilities Capabilities => Capabilities.Reader | Capabilities.Writer;
 

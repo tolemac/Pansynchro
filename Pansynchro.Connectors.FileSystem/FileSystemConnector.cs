@@ -13,7 +13,8 @@ using Pansynchro.Core.DataDict;
 namespace Pansynchro.Connectors.FileSystem;
 internal class FileSystemConnector : ConnectorCore
 {
-	public override string Name => "FileSystem";
+	public static string ProviderName => "FileSystem";
+	public override string Name => ProviderName;
 
 	public override Capabilities Capabilities => Capabilities.Reader | Capabilities.Analyzer | Capabilities.Configurator | Capabilities.RandomAccessReader;
 

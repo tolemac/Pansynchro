@@ -17,6 +17,8 @@ namespace Pansynchro.Connectors.Postgres
 {
 	public class PostgresWriter : SqlDbWriter
 	{
+		public override string Provider => PostgresConnector.ProviderName;
+
 		private DataDictionary? _dict;
 
 		public PostgresWriter(string connectionString) : base(new NpgsqlConnection(connectionString))
@@ -79,7 +81,7 @@ namespace Pansynchro.Connectors.Postgres
 			for (int i = 0; i < reader.FieldCount; ++i) {
 				var fieldName = reader.GetName(i);
 				var dataType = schema[fieldName];
-				result += MakeReader(i, dataType!.Value);
+			    result += MakeReader(i, dataType!.Value);
 			}
 			return (r, imp, buffer) => {
 				reader.GetValues(buffer);
@@ -90,7 +92,15 @@ namespace Pansynchro.Connectors.Postgres
 
 		private static Action<NpgsqlBinaryImporter, object[]> MakeReader(int i, NpgsqlDbType value)
 		{
-			return (imp, buffer) => imp.Write(buffer[i], value);
+			return (imp, buffer) => {
+				try {
+					imp.Write(buffer[i], value);							
+				} 
+				catch (Exception ex) 
+				{
+					throw new Exception($"Error writing for field index {i} with type {value} and value {buffer[i]}", ex);
+				}
+			};
 		}
 
 		private Dictionary<string, NpgsqlDbType?> ExtractSchema(StreamDescription name)
@@ -104,6 +114,8 @@ namespace Pansynchro.Connectors.Postgres
 
 		protected override void Setup(DataDictionary dest)
 		{
+			// This class _dict is not the same as the one in the base class
+			base.Setup(dest);
 			_dict = dest;
 			_conn.OpenAsync().GetAwaiter().GetResult();
 			try {

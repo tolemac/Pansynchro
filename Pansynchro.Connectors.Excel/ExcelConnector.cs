@@ -10,7 +10,8 @@ namespace Pansynchro.Connectors.Excel
 {
 	public class ExcelConnector : ConnectorCore
 	{
-		public override string Name => "Excel";
+		public static string ProviderName => "Excel";
+		public override string Name => ProviderName;
 
 		public override Capabilities Capabilities => Capabilities.Reader | Capabilities.Analyzer;
 

@@ -11,7 +11,8 @@ namespace Pansynchro.Connectors.MySQL
 {
 	public class MySqlConnector : ConnectorCore
 	{
-		public override string Name => "MySql";
+		public static string ProviderName => "MySql";
+		public override string Name => ProviderName;
 
 		public override Capabilities Capabilities => Capabilities.ALL;
 

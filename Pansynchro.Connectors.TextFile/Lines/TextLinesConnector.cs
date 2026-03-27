@@ -10,7 +10,8 @@ namespace Pansynchro.Connectors.TextFile.Lines
 {
 	public class TextLinesConnector : ConnectorCore
 	{
-		public override string Name => "Text File (lines)";
+		public static string ProviderName => "Text File (lines)";
+		public override string Name => ProviderName;
 
 		public override Capabilities Capabilities => Capabilities.Reader | Capabilities.Writer | Capabilities.Analyzer | Capabilities.RandomAccessReader;
 

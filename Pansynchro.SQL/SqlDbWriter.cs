@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading.Tasks;
 
 using Pansynchro.Core;
+using Pansynchro.Core.CustomTypes;
 using Pansynchro.Core.DataDict;
 using Pansynchro.Core.EventsSystem;
 using Pansynchro.Core.Errors;
@@ -35,6 +36,7 @@ namespace Pansynchro.SQL
 				EventLog.Instance.AddStartSyncEvent();
 				await foreach (var (name, settings, reader) in streams) {
 					EventLog.Instance.AddStartSyncStreamEvent(name);
+					IDataReader sqlReader = reader;
 					try {
 						if (reader is IncrementalDataReader inc) {
 							var bookmark = IncrementalSync(name, inc);
@@ -42,7 +44,8 @@ namespace Pansynchro.SQL
 								_stateManager.SaveIncrementalData(name, bookmark);
 							}
 						} else {
-							FullStreamSync(name, settings, reader);
+							sqlReader = TransformForSqlWrite(name, settings, reader);
+							FullStreamSync(name, settings, sqlReader);
 						}
 					} catch (Exception ex) {
 						EventLog.Instance.AddErrorEvent(ex, name);
@@ -50,7 +53,7 @@ namespace Pansynchro.SQL
 							throw;
 					} finally {
 						EventLog.Instance.AddEndSyncStreamEvent(name);
-						reader.Dispose();
+						sqlReader.Dispose();
 					}
 				}
 				await Finish();
@@ -62,7 +65,8 @@ namespace Pansynchro.SQL
 
 		private string? IncrementalSync(StreamDescription name, IncrementalDataReader inc)
 		{
-			var writers = BuildIncrementalWriters(name, inc);
+			var schema = _dict!.GetStream(name.ToString());
+			var writers = BuildIncrementalWriters(name, inc, schema);
 			BeginIncrementalSync(name);
 			var tran = _conn.BeginTransaction(IsolationLevel.Serializable);
 			long count = 0;
@@ -90,20 +94,26 @@ namespace Pansynchro.SQL
 
 		protected virtual void FinishIncrementalSync(StreamDescription name) { }
 
-		private static Action<List<string>, DbParameterCollection>[] BuildIncrementalWriters(StreamDescription name, IncrementalDataReader inc)
+		private Action<List<string>, DbParameterCollection>[] BuildIncrementalWriters(StreamDescription name, IncrementalDataReader inc, StreamDefinition schema)
 		{
 			var result = new Action<List<string>, DbParameterCollection>[inc.FieldCount];
+			var converters = CustomTypeAccessorTransformations.BuildWriteConverters(schema, Provider);
 			for (int i = 0; i < inc.FieldCount; ++i) {
-				result[i] = BuildWriter(i, inc);
+				converters.TryGetValue(inc.GetName(i), out var converter);
+				result[i] = BuildWriter(i, inc, converter);
 			}
 			return result;
 		}
 
-		private static Action<List<string>, DbParameterCollection> BuildWriter(int i, IncrementalDataReader inc) =>
+		private static Action<List<string>, DbParameterCollection> BuildWriter(int i, IncrementalDataReader inc, Func<object, object>? converter) =>
 			(l, p) => {
 				var name = inc.GetName(i);
 				l.Add(name);
-				var idx = p.Add(inc[i]);
+				var value = inc[i];
+				if (value is not null && value != DBNull.Value && converter != null) {
+					value = converter(value);
+				}
+				var idx = p.Add(value ?? DBNull.Value);
 				p[idx].ParameterName = name;
 			};
 
@@ -173,6 +183,7 @@ namespace Pansynchro.SQL
 		}
 
 		protected abstract ISqlFormatter Formatter { get; }
+		public abstract string Provider { get; }
 
 		protected virtual void Setup(DataDictionary dest)
 		{
@@ -182,6 +193,22 @@ namespace Pansynchro.SQL
 		protected abstract void FullStreamSync(StreamDescription name, StreamSettings settings, IDataReader reader);
 
 		protected virtual Task Finish() => Task.CompletedTask;
+
+		private IDataReader TransformForSqlWrite(StreamDescription name, StreamSettings settings, IDataReader reader)
+		{
+			if (_dict == null || string.IsNullOrWhiteSpace(Provider)) {
+				return reader;
+			}
+
+			var stream = _dict.GetStream(name.ToString());
+			var converters = CustomTypeAccessorTransformations.BuildWriteConverters(stream, Provider);
+			if (converters.Count == 0) {
+				return reader;
+			}
+
+			var data = new DataStream(name, settings, reader);
+			return CustomTypeAccessorTransformations.ApplyForWrite(data, stream, Provider).Reader;
+		}
 
 		public Dictionary<StreamDescription, string> IncrementalData => _stateManager.IncrementalDataFor();
 

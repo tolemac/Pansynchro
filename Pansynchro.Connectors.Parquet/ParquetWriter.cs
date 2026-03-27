@@ -10,6 +10,7 @@ using PSchema = Parquet.Schema.ParquetSchema;
 using DataColumn = Parquet.Data.DataColumn;
 
 using Pansynchro.Core;
+using Pansynchro.Core.CustomTypes;
 using Pansynchro.Core.DataDict;
 using Pansynchro.Core.Errors;
 using Pansynchro.Core.EventsSystem;
@@ -20,6 +21,8 @@ namespace Pansynchro.Connectors.Parquet
 {
 	public class ParquetWriter : IWriter, ISinkConnector
 	{
+		public string Provider => ParquetConnector.ProviderName;
+
 		private IDataSink? _sink;
 
 		public void SetDataSink(IDataSink sink)
@@ -35,18 +38,20 @@ namespace Pansynchro.Connectors.Parquet
 			EventLog.Instance.AddStartSyncEvent();
 			await foreach (var (name, settings, reader) in streams) {
 				EventLog.Instance.AddStartSyncStreamEvent(name);
+				IDataReader outReader = reader;
 				try {
 					var streamDef = dest.GetStream(name, NameStrategy.Get(NameStrategyType.Identity));
+					outReader = CustomTypeAccessorTransformations.ApplyForWrite(new DataStream(name, settings, reader), streamDef, Provider).Reader;
 					var (schema, writers) = ParquetWriter.BuildSchema(streamDef);
 					using var writer = await PWriter.CreateAsync(schema, await _sink.WriteData(name.ToString()));
 					using var group = writer.CreateRowGroup();
-					await ParquetWriter.WriteParquetData(reader, writers, group);
+					await ParquetWriter.WriteParquetData(outReader, writers, group);
 				} catch (Exception ex) {
 					EventLog.Instance.AddErrorEvent(ex, name);
 					if (!ErrorManager.ContinueOnError)
 						throw;
 				} finally {
-					reader.Dispose();
+					outReader.Dispose();
 				}
 				EventLog.Instance.AddEndSyncStreamEvent(name);
 			}
@@ -115,6 +120,7 @@ namespace Pansynchro.Connectors.Parquet
 				TypeTag.DateTimeTZ => nullable ? DoMakeNullableArrayBuilder<DateTimeOffset>(idx) : DoMakeArrayBuilder<DateTimeOffset>(idx),
 				TypeTag.DateTime => nullable ? DoMakeNullableDateTimeBuilder(idx) : DoMakeDateTimeBuilder(idx),
 				TypeTag.Interval => nullable ? DoMakeNullableArrayBuilder<TimeSpan>(idx) : DoMakeArrayBuilder<TimeSpan>(idx),
+				TypeTag.Geometry or TypeTag.Geography => nullable ? DoMakeNullableArrayRefBuilder<string>(idx) : DoMakeArrayBuilder<string>(idx),
 				_ => throw new NotSupportedException($"Field data type '{bt.Type}' is not supported")
 			};
 		}
@@ -201,6 +207,7 @@ namespace Pansynchro.Connectors.Parquet
 				TypeTag.Decimal => typeof(decimal),
 				TypeTag.DateTimeTZ or TypeTag.DateTime => typeof(DateTimeOffset),
 				TypeTag.Interval => typeof(TimeSpan),
+				TypeTag.Geometry or TypeTag.Geography => typeof(string),
 				_ => throw new NotSupportedException($"Field data type '{type}' is not supported")
 			};
 

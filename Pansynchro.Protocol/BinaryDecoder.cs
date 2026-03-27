@@ -20,6 +20,9 @@ namespace Pansynchro.Protocol
 {
 	public class BinaryDecoder : IReader
 	{
+		public string Provider => _provider;
+
+		private readonly string _provider;
 		private readonly TcpClient? _client;
 		private readonly MeteredStream _meter;
 		private readonly BrotliStream _decompressor;
@@ -28,13 +31,14 @@ namespace Pansynchro.Protocol
 
 		private const int VERSION = 6;
 
-		public BinaryDecoder(TcpClient client, DataDictionary? sourceDict) : this(client.GetStream(), sourceDict)
+		public BinaryDecoder(TcpClient client, DataDictionary? sourceDict, string provider) : this(client.GetStream(), sourceDict, provider)
 		{
 			_client = client;
 		}
 
-		public BinaryDecoder(Stream source, DataDictionary? sourceDict)
+		public BinaryDecoder(Stream source, DataDictionary? sourceDict, string provider)
 		{
+			_provider = provider;
 			_meter = new MeteredStream(source);
 			_decompressor = new BrotliStream(_meter, CompressionMode.Decompress);
 			_reader = new BinaryReader(_decompressor, Encoding.UTF8);
@@ -523,7 +527,7 @@ namespace Pansynchro.Protocol
 
 		private static Func<BinaryReader, object> Unimplemented(IFieldType type)
 		{
-			var customType = type is BasicField bf ? CustomTypeRegistry.GetType(bf.Type) : null;
+			var customType = type is BasicField bf ? CustomTypeRegistry.GetProtocolType(bf.Type) : null;
 			if (customType == null) {
 				throw new NotImplementedException($"No reader implemented for '{type}'.");
 			}
@@ -548,13 +552,13 @@ namespace Pansynchro.Protocol
 			var parts = connectionString.Split(';');
 			var client = new TcpClient(parts[0], NetworkInfo.TCP_PORT);
 			var srcdict = DataDictionary.LoadFromFile(parts[1]);
-			return new BinaryDecoder(client, srcdict);
+			return new BinaryDecoder(client, srcdict, NetworkConnector.ProviderName);
 		}
 
 		internal static IReader Archive(string connectionString)
 		{
 			var file = File.OpenRead(connectionString);
-			return new BinaryDecoder(file, null);
+			return new BinaryDecoder(file, null, PansyncBArchiveConnector.ProviderName);
 		}
 	}
 }

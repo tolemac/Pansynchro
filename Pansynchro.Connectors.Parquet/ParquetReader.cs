@@ -13,6 +13,7 @@ using PReader = Parquet.ParquetReader;
 using DataColumn = Parquet.Data.DataColumn;
 
 using Pansynchro.Core;
+using Pansynchro.Core.CustomTypes;
 using Pansynchro.Core.DataDict;
 using Pansynchro.Core.Helpers;
 using Pansynchro.Core.Readers;
@@ -21,6 +22,8 @@ namespace Pansynchro.Connectors.Parquet
 {
 	public class ParquetReader : IReader, ISourcedConnector, IRandomStreamReader
 	{
+		public string Provider => ParquetConnector.ProviderName;
+
 		private IDataSource? _source;
 
 		public ParquetReader(string config) { }
@@ -61,7 +64,8 @@ namespace Pansynchro.Connectors.Parquet
 		{
 			using var lStream = StreamHelper.SeekableStream(stream);
 			var table = (await PReader.CreateAsync(lStream));
-			return new DataStream(streamDef.Name, StreamSettings.None, new ParquetTableReader(table, streamDef));
+			var data = new DataStream(streamDef.Name, StreamSettings.None, new ParquetTableReader(table, streamDef));
+			return CustomTypeAccessorTransformations.ApplyForRead(data, streamDef, ParquetConnector.ProviderName);
 		}
 
 		public Task<Exception?> TestConnection() => Task.FromResult<Exception?>(null);

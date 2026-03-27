@@ -4,6 +4,7 @@ using System.Data;
 using System.Threading.Tasks;
 
 using Pansynchro.Core;
+using Pansynchro.Core.CustomTypes;
 using Pansynchro.Core.DataDict;
 using Pansynchro.Core.Errors;
 using Pansynchro.Core.EventsSystem;
@@ -12,6 +13,8 @@ namespace Pansynchro.Connectors.TextFile.WholeFile
 {
 	public class TextFileWriter : IWriter, ISinkConnector
 	{
+		public string Provider => TextFileConnector.ProviderName;
+
 		private IDataSink? _sink;
 
 		public async Task Sync(IAsyncEnumerable<DataStream> streams, DataDictionary dest)
@@ -22,17 +25,20 @@ namespace Pansynchro.Connectors.TextFile.WholeFile
 			EventLog.Instance.AddStartSyncEvent();
 			await foreach (var (name, settings, stream) in streams) {
 				EventLog.Instance.AddStartSyncStreamEvent(name);
+				IDataReader outReader = stream;
 				try {
+					var streamDef = dest.GetStream(name.ToString());
+					outReader = CustomTypeAccessorTransformations.ApplyForWrite(new DataStream(name, settings, stream), streamDef, Provider).Reader;
 					using var writer = await _sink.WriteText(name.ToString());
-					while (stream.Read()) {
-						writer.Write(stream.GetString(stream.GetOrdinal("Value")));
+					while (outReader.Read()) {
+						writer.Write(outReader.GetString(outReader.GetOrdinal("Value")));
 					}
 				} catch (Exception ex) {
 					EventLog.Instance.AddErrorEvent(ex, name);
 					if (!ErrorManager.ContinueOnError)
 						throw;
 				} finally {
-					stream.Dispose();
+					outReader.Dispose();
 				}
 				EventLog.Instance.AddEndSyncStreamEvent(name);
 			}

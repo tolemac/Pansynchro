@@ -11,7 +11,8 @@ namespace Pansynchro.Connectors.Snowflake
 {
 	public class SnowflakeConnector : ConnectorCore
 	{
-		public override string Name => "Snowflake";
+		public static string ProviderName => "Snowflake";
+		public override string Name => ProviderName;
 
 		public override Capabilities Capabilities => Capabilities.ALL;
 

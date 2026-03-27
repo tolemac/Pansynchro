@@ -55,7 +55,7 @@ namespace Pansynchro.NetworkServer
 				: client.GetStream();
 			var dict = DataDictionary.LoadFromFile(config.DataDict);
 			using IReader reader = ConnectorRegistry.GetReader(config.InputType, config.ConnectionString);
-			var encoder = new BinaryEncoder(stream);
+			var encoder = new BinaryEncoder(stream, NetworkConnector.ProviderName);
 			try {
 				await encoder.Sync(reader.ReadFrom(dict), dict);
 			} catch (IOException x) {

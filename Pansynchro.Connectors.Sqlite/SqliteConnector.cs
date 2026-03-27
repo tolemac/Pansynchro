@@ -11,7 +11,8 @@ namespace Pansynchro.Connectors.Sqlite
 {
 	public class SqliteConnector : ConnectorCore
 	{
-		public override string Name => "Sqlite";
+		public static string ProviderName => "Sqlite";
+		public override string Name => ProviderName;
 
 		public override Capabilities Capabilities => Capabilities.ALL;
 

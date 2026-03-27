@@ -10,7 +10,8 @@ namespace Pansynchro.Connectors.TextFile.WholeFile
 {
 	public class TextFileConnector : ConnectorCore
 	{
-		public override string Name => "Text File (whole)";
+		public static string ProviderName => "Text File (whole)";
+		public override string Name => ProviderName;
 
 		public override Capabilities Capabilities => Capabilities.Reader | Capabilities.Writer | Capabilities.Analyzer | Capabilities.RandomAccessReader;
 

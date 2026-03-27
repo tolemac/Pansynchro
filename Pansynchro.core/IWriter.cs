@@ -8,6 +8,7 @@ namespace Pansynchro.Core
 {
 	public interface IWriter : IDisposable
 	{
+		string Provider { get; }
 		Task Sync(IAsyncEnumerable<DataStream> streams, DataDictionary dest);
 	}
 

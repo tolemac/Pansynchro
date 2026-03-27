@@ -55,9 +55,16 @@ order by TABLE_NAME, COLUMN_NAME";
 			{ "datetime", TypeTag.DateTime },
 			{ "decimal", TypeTag.Decimal },
 			{ "double", TypeTag.Double },
+			{ "geometry", TypeTag.Geometry },
+			{ "linestring", TypeTag.Geometry },
 			{ "int", TypeTag.Int },
+			{ "multilinestring", TypeTag.Geometry },
+			{ "multipoint", TypeTag.Geometry },
+			{ "multipolygon", TypeTag.Geometry },
 			{ "mediumtext", TypeTag.Text },
 			{ "numeric", TypeTag.Decimal },
+			{ "point", TypeTag.Geometry },
+			{ "polygon", TypeTag.Geometry },
 			{ "smallint", TypeTag.Short },
 			{ "text", TypeTag.Text },
 			{ "time", TypeTag.Time },
@@ -72,7 +79,7 @@ order by TABLE_NAME, COLUMN_NAME";
 			if (TYPE_MAP.TryGetValue(v, out var result)) {
 				return result;
 			}
-			throw new ArgumentException($"Unknown SQL data type '{v}'.");
+			return UnknownSqlType("MySQL schema analyzer", v);
 		}
 
 		private static string? GetInfo(TypeTag tag, IDataReader reader) => tag switch {
@@ -171,6 +178,7 @@ WHERE t.constraint_type='PRIMARY KEY'
 			MySqlDbType.Int64 => TypeTag.Long,
 			MySqlDbType.Float => TypeTag.Float,
 			MySqlDbType.Double => TypeTag.Double,
+			MySqlDbType.Geometry => TypeTag.Geometry,
 			MySqlDbType.Timestamp or MySqlDbType.DateTime => TypeTag.DateTime,
 			MySqlDbType.Date => TypeTag.Date,
 			MySqlDbType.Time => TypeTag.Time,
@@ -185,7 +193,7 @@ WHERE t.constraint_type='PRIMARY KEY'
 			MySqlDbType.Binary or MySqlDbType.VarBinary => TypeTag.Binary,
 			MySqlDbType.Text or MySqlDbType.TinyText or MySqlDbType.MediumText or MySqlDbType.LongText => TypeTag.Text,
 			MySqlDbType.Guid => TypeTag.Guid,
-			_ => throw new DataException($"Data type {type} is not supported")
+			_ => UnknownSqlType("MySQL schema analyzer (provider type)", type.ToString())
 		};
 
 		private static readonly HashSet<MySqlDbType> _infoTypes = new() {

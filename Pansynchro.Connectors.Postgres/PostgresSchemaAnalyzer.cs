@@ -33,7 +33,8 @@ LEFT JOIN pg_catalog.pg_namespace n ON n.oid = t.relnamespace
 WHERE a.attnum > 0
 	AND NOT a.attisdropped
 	and a.attgenerated = ''
-	and t.relkind = 'r'
+	AND t.relkind IN ('r', 'p')
+    AND t.relispartition = false
 	and nspname not in ('information_schema', 'pg_catalog', 'pansynchro')
 	and nspname not like 'pg_toast%'
 	and nspname not like 'pg_temp_%'
@@ -111,16 +112,35 @@ AND    pg_catalog.pg_type_is_visible(t.oid)";
 			if (isArr) {
 				typeName = typeName[..^2];
 			}
-			string? info = null;
-			if (typeName.EndsWith(')')) {
-				var startPos = typeName.LastIndexOf('(');
-				info = typeName[(startPos + 1)..^1];
-				typeName = typeName.Substring(0, startPos);
-			}
-			var type = GetTagType(typeName);
+			var (baseTypeName, info) = ParseTypeName(typeName);
+			var type = GetTagType(baseTypeName);
 			var nullable = !reader.GetBoolean(4);
 			var result = new BasicField(type, nullable, info, false);
 			return isArr ? new CollectionField(result.MakeNull(), CollectionType.Array, false) : result;
+		}
+
+		private static (string typeName, string? info) ParseTypeName(string typeName)
+		{
+			// Check for parenthesis, which indicate additional type information (e.g. varchar(255))
+			// Parenthesis can also be present in the middle of the type name (e.g. timestamp(3) with time zone), 
+			// so we need to find the first pair of parenthesis
+			var startPos = typeName.IndexOf('(');
+			if (startPos < 0) {
+				return (typeName.Trim(), null);
+			}
+
+			var endPos = typeName.IndexOf(')', startPos + 1);
+			if (endPos < 0) {
+				return (typeName.Trim(), null);
+			}
+
+			var info = typeName[(startPos + 1)..endPos];
+			var normalizedType = string.Concat(typeName.AsSpan(0, startPos), typeName.AsSpan(endPos + 1)).Trim();
+			if (normalizedType.Contains("  ")) {
+				normalizedType = string.Join(' ', normalizedType.Split(' ', StringSplitOptions.RemoveEmptyEntries));
+			}
+
+			return (normalizedType, info);
 		}
 
 		private static readonly Dictionary<string, TypeTag> TYPE_MAP = new()
@@ -140,6 +160,8 @@ AND    pg_catalog.pg_type_is_visible(t.oid)";
 			{ "decimal", TypeTag.Decimal },
 			{ "float4", TypeTag.Single },
 			{ "float8", TypeTag.Double },
+			{ "geography", TypeTag.Geography},
+			{ "geometry", TypeTag.Geometry},
 			{ "int", TypeTag.Int },
 			{ "int2", TypeTag.Short },
 			{ "int4", TypeTag.Int },
@@ -171,7 +193,7 @@ AND    pg_catalog.pg_type_is_visible(t.oid)";
 			if (TYPE_MAP.TryGetValue(v, out var result)) {
 				return result;
 			}
-			throw new ArgumentException($"Unknown SQL data type '{v}'.");
+			return UnknownSqlType("Postgres schema analyzer", v);
 		}
 
 		const string READ_DEPS =
@@ -230,13 +252,8 @@ where table_type = 'BASE TABLE' and table_schema !~ 'pg_' and table_schema != 'i
 			if (isArr) {
 				typeName = typeName[..^2];
 			}
-			string? info = null;
-			if (typeName.EndsWith(')')) {
-				var startPos = typeName.LastIndexOf('(');
-				info = typeName[(startPos + 1)..^1];
-				typeName = typeName.Substring(0, startPos);
-			}
-			var type = GetTagType(typeName);
+			var (baseTypeName, info) = ParseTypeName(typeName);
+			var type = GetTagType(baseTypeName);
 			var nullable = row["AllowDBNull"] is bool b ? b : true;
 			var result = new BasicField(type, nullable, info, false);
 			return isArr ? new CollectionField(result.MakeNull(), CollectionType.Array, false) : result;

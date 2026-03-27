@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 
 using Pansynchro.Connectors.Avro;
 using Pansynchro.Core;
+using Pansynchro.Core.CustomTypes;
 using Pansynchro.Core.DataDict;
 using Pansynchro.Core.Helpers;
 using Pansynchro.Sources.Files;
@@ -16,6 +17,8 @@ namespace Pansynchro.Connectors.Snowflake
 {
 	public class SnowflakeWriter : IWriter
 	{
+		public string Provider => SnowflakeConnector.ProviderName;
+
 		private readonly string _conn;
 
 		public SnowflakeWriter(string connectionString)
@@ -47,7 +50,7 @@ namespace Pansynchro.Connectors.Snowflake
 				var uploader = new SnowflakeUploader(_conn, uploads.Add);
 				subWriter.SetDataSink(sink.Pipeline(uploader));
 				var partitioner = new SizePartitionTransformer(uploader.GetMeter, SNOWFLAKE_SIZE);
-				await subWriter.Sync(partitioner.Transform(streams), dest);
+				await subWriter.Sync(partitioner.Transform(TransformForSnowflake(streams, dest)), dest);
 				await Task.WhenAll(uploads);
 			} catch (Exception ex) {
 				EventLog.Instance.AddErrorEvent(ex);
@@ -57,6 +60,14 @@ namespace Pansynchro.Connectors.Snowflake
 				Directory.Delete(tempdir, true);
 			}
 			EventLog.Instance.AddEndSyncEvent();
+		}
+
+		private async IAsyncEnumerable<DataStream> TransformForSnowflake(IAsyncEnumerable<DataStream> streams, DataDictionary dest)
+		{
+			await foreach (var data in streams) {
+				var streamDef = dest.GetStream(data.Name.ToString());
+				yield return CustomTypeAccessorTransformations.ApplyForWrite(data, streamDef, Provider);
+			}
 		}
 
 		public void Dispose()

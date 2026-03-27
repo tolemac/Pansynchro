@@ -50,17 +50,25 @@ namespace Pansynchro.Connectors.Excel
 					break;
 				}
 				for (int j = 0; j < fields.Count; ++j) {
-					fields[j] = ReadTypeInfo(fields[j], excelReader.GetFieldType(j));
+					fields[j] = ReadTypeInfo(fields[j], excelReader.GetFieldType(j), excelReader.GetValue(j));
 				}
 			}
 			return new StreamDefinition(new StreamDescription(fileName, name), fields.ToArray(), Array.Empty<string>());
 		}
 
-		private static FieldDefinition ReadTypeInfo(FieldDefinition fd, Type type)
+		private static FieldDefinition ReadTypeInfo(FieldDefinition fd, Type type, object? value)
 		{
 			if (type == null) {
 				return fd.Type.Nullable ? fd : fd with { Type = fd.Type.MakeNull() };
 			}
+
+			if (type == typeof(string) && TryInferGeoTag(value, out var geoTag)) {
+				var bfGeo = (BasicField)fd.Type;
+				if (bfGeo.Type is TypeTag.Unstructured or TypeTag.Text) {
+					return fd with { Type = bfGeo with { Type = geoTag } };
+				}
+			}
+
 			var tag = GetTypeTag(type);
 			var bf = (BasicField)fd.Type;
 			if (tag == bf.Type) {
@@ -86,6 +94,41 @@ namespace Pansynchro.Connectors.Excel
 			if (type == typeof(TimeSpan)) return TypeTag.Time;
 			if (type == typeof(string)) return TypeTag.Text;
 			throw new ArgumentException($"Unknown type: {type.FullName}");
+		}
+
+		private static readonly string[] _wktPrefixes = new[] {
+			"POINT(",
+			"LINESTRING(",
+			"POLYGON(",
+			"MULTIPOINT(",
+			"MULTILINESTRING(",
+			"MULTIPOLYGON(",
+			"GEOMETRYCOLLECTION("
+		};
+
+		private static bool TryInferGeoTag(object? value, out TypeTag tag)
+		{
+			tag = TypeTag.Unstructured;
+			if (value is not string text || string.IsNullOrWhiteSpace(text)) {
+				return false;
+			}
+
+			var probe = text.Trim();
+			if (probe.StartsWith("SRID=", StringComparison.OrdinalIgnoreCase)) {
+				var split = probe.Split(';', 2);
+				if (split.Length == 2) {
+					probe = split[1].Trim();
+				}
+			}
+
+			foreach (var prefix in _wktPrefixes) {
+				if (probe.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) {
+					tag = TypeTag.Geometry;
+					return true;
+				}
+			}
+
+			return false;
 		}
 
 		public void SetDataSource(IDataSource source)

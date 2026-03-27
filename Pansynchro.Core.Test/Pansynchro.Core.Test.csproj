@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="NUnit" Version="4.3.2" />
+    <PackageReference Include="NUnit3TestAdapter" Version="5.0.0" />
+    <PackageReference Include="NUnit.Analyzers" Version="4.9.2">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="coverlet.collector" Version="6.0.4">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Pansynchro.core\Pansynchro.Core.csproj" />
+    <ProjectReference Include="..\Pansynchro.Connections.MSSQL\Pansynchro.Connectors.MSSQL.csproj" />
+    <ProjectReference Include="..\Pansynchro.Connections.MySql\Pansynchro.Connectors.MySql.csproj" />
+    <ProjectReference Include="..\Pansynchro.Connectors.Postgres\Pansynchro.Connectors.Postgres.csproj" />
+    <ProjectReference Include="..\Pansynchro.Connectors.Snowflake\Pansynchro.Connectors.Snowflake.csproj" />
+    <ProjectReference Include="..\Pansynchro.Connectors.Sqlite\Pansynchro.Connectors.Sqlite.csproj" />
+    <ProjectReference Include="..\Pansynchro.Connectors.Firebird\Pansynchro.Connectors.Firebird.csproj" />
+    <ProjectReference Include="..\Pansynchro.Connectors.Avro\Pansynchro.Connectors.Avro.csproj" />
+    <ProjectReference Include="..\Pansynchro.Connectors.Excel\Pansynchro.Connectors.Excel.csproj" />
+    <ProjectReference Include="..\Pansynchro.Connectors.Parquet\Pansynchro.Connectors.Parquet.csproj" />
+    <ProjectReference Include="..\Pansynchro.Connectors.TextFile\Pansynchro.Connectors.TextFile.csproj" />
+  </ItemGroup>
+
+</Project>

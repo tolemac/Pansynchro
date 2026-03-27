@@ -15,6 +15,8 @@ namespace Pansynchro.Connectors.MSSQL
 {
 	public class MSSQLWriter : SqlDbWriter
 	{
+		public override string Provider => MSSQLConnector.ProviderName;
+
 		private readonly SqlConnection? _perfConn;
 		private readonly string _connectionString;
 

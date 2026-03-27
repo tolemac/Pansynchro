@@ -24,7 +24,7 @@ namespace Pansynchro.NetworkClient
 				Console.WriteLine($"{DateTime.Now} Connected, sending handshake");
 				await SendHandshake(stream);
 				Console.WriteLine($"{DateTime.Now} Handshake successful");
-				return new BinaryDecoder(client, dict);
+				return new BinaryDecoder(client, dict, NetworkConnector.ProviderName);
 			} catch (Exception e) {
 				Console.WriteLine(e);
 				throw;

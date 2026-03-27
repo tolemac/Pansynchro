@@ -8,6 +8,8 @@ namespace Pansynchro.Connectors.Sqlite
 {
 	public class SqliteReader : SqlDbReader
 	{
+		public override string Provider => SqliteConnector.ProviderName;
+
 		public SqliteReader(string connectionString) : base(connectionString)
 		{ }
 

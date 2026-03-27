@@ -1,5 +1,6 @@
 ﻿using System.IO;
 using System.Runtime.CompilerServices;
+using System.Data.SqlTypes;
 
 using Microsoft.SqlServer.Types;
 
@@ -10,7 +11,7 @@ namespace Pansynchro.Connectors.MSSQL
 {
 	internal static class MssqlCustomTypes
 	{
-		private class HierarchySupport : ICustomType
+		private class HierarchySupport : IProtocolCustomType
 		{
 			public string Name => typeof(SqlHierarchyId).FullName!;
 
@@ -41,7 +42,7 @@ namespace Pansynchro.Connectors.MSSQL
 			}
 		}
 
-		private class GeometrySupport : ICustomType
+		private class GeometrySupport : IProtocolCustomType
 		{
 			public string Name => typeof(SqlGeometry).FullName!;
 
@@ -61,11 +62,11 @@ namespace Pansynchro.Connectors.MSSQL
 			}
 		}
 
-		private class GeographySupport : ICustomType
+		private class GeographySupport : IProtocolCustomType
 		{
 			public string Name => typeof(SqlGeography).FullName!;
 
-			public TypeTag Type => TypeTag.Geometry;
+			public TypeTag Type => TypeTag.Geography;
 
 			public object ProtocolReader(BinaryReader r)
 			{
@@ -81,11 +82,64 @@ namespace Pansynchro.Connectors.MSSQL
 			}
 		}
 
+		private class GeometryTypeAccessor : ICustomTypeAccessor
+		{
+			public TypeTag Type => TypeTag.Geometry;
+			public string Provider => "MSSQL";
+
+			public object ToCanonical(object sqlValue)
+			{
+				if (sqlValue is SqlGeometry geometry) {
+					var srid = geometry.STSrid.IsNull ? null : (int?)geometry.STSrid.Value;
+					return new CanonicalGeo(new string(geometry.STAsText().Value), srid);
+				}
+				return sqlValue;
+			}
+
+			public object FromCanonical(object canonicalValue)
+			{
+				var (wkt, srid) = canonicalValue switch {
+					CanonicalGeo geo => (geo.Wkt, geo.Srid ?? 0),
+					string text => (text, 0),
+					_ => (canonicalValue.ToString() ?? string.Empty, 0)
+				};
+				return SqlGeometry.STGeomFromText(new SqlChars(wkt), srid);
+			}
+		}
+
+		private class GeographyTypeAccessor : ICustomTypeAccessor
+		{
+			public TypeTag Type => TypeTag.Geography;
+			public string Provider => "MSSQL";
+
+			public object ToCanonical(object sqlValue)
+			{
+				if (sqlValue is SqlGeography geography) {
+					var srid = geography.STSrid.IsNull ? null : (int?)geography.STSrid.Value;
+					return new CanonicalGeo(new string(geography.STAsText().Value), srid);
+				}
+				return sqlValue;
+			}
+
+			public object FromCanonical(object canonicalValue)
+			{
+				var (wkt, srid) = canonicalValue switch {
+					CanonicalGeo geo => (geo.Wkt, geo.Srid ?? CanonicalGeo.Wgs84Srid),
+					string text => (text, CanonicalGeo.Wgs84Srid),
+					_ => (canonicalValue.ToString() ?? string.Empty, CanonicalGeo.Wgs84Srid)
+				};
+				return SqlGeography.STGeomFromText(new SqlChars(wkt), srid);
+			}
+		}
+
 		[ModuleInitializer]
 		public static void Register()
 		{
-			CustomTypeRegistry.RegisterType(new HierarchySupport());
-			CustomTypeRegistry.RegisterType(new GeometrySupport());
+			CustomTypeRegistry.RegisterProtocolType(new HierarchySupport());
+			CustomTypeRegistry.RegisterProtocolType(new GeometrySupport());
+			CustomTypeRegistry.RegisterProtocolType(new GeographySupport());
+			CustomTypeRegistry.RegisterTypeAccessor(new GeometryTypeAccessor());
+			CustomTypeRegistry.RegisterTypeAccessor(new GeographyTypeAccessor());
 		}
 	}
 }

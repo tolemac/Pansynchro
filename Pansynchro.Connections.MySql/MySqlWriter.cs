@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using MySqlConnector;
 
 using Pansynchro.Core;
+using Pansynchro.Core.CustomTypes;
 using Pansynchro.Core.DataDict;
 using Pansynchro.Core.Errors;
 using Pansynchro.Core.EventsSystem;
@@ -16,6 +17,8 @@ namespace Pansynchro.Connectors.MySQL
 {
 	public class MySqlWriter : IWriter
 	{
+		public string Provider => MySqlConnector.ProviderName;
+
 		private readonly MySqlConnection _conn;
 
 		public MySqlWriter(string connectionString)
@@ -38,24 +41,27 @@ namespace Pansynchro.Connectors.MySQL
 			EventLog.Instance.AddStartSyncEvent();
 			await foreach (var (name, averageSize, reader) in streams) {
 				EventLog.Instance.AddStartSyncStreamEvent(name);
+				IDataReader outReader = reader;
 				try {
+					var streamDef = dest.GetStream(name, NameStrategy.Get(NameStrategyType.NameOnlyLowerCase));
+					outReader = CustomTypeAccessorTransformations.ApplyForWrite(new DataStream(name, averageSize, reader), streamDef, Provider).Reader;
 					ulong progress = 0;
 					var copy = new MySqlBulkCopy(_conn) {
 						DestinationTableName = $"`{name}`",
 						NotifyAfter = BATCH_SIZE
 					};
 					copy.MySqlRowsCopied += (s, e) => progress = (ulong)e.RowsCopied;
-					copy.ColumnMappings.AddRange(GetColumnMapping(reader));
+					copy.ColumnMappings.AddRange(GetColumnMapping(outReader));
 					var stopwatch = new Stopwatch();
 					stopwatch.Start();
-					copy.WriteToServer(reader);
+					copy.WriteToServer(outReader);
 					stopwatch.Stop();
 				} catch (Exception ex) {
 					EventLog.Instance.AddErrorEvent(ex, name);
 					if (!ErrorManager.ContinueOnError)
 						throw;
 				} finally {
-					reader.Dispose();
+					outReader.Dispose();
 				}
 				EventLog.Instance.AddEndSyncStreamEvent(name);
 			}

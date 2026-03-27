@@ -11,7 +11,8 @@ namespace Pansynchro.Connectors.Firebird
 {
 	public class FirebirdConnector : ConnectorCore
 	{
-		public override string Name => "Firebird";
+		public static string ProviderName => "Firebird";
+		public override string Name => ProviderName;
 
 		public override Capabilities Capabilities => Capabilities.ALL;
 

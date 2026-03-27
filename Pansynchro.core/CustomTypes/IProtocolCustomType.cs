@@ -4,7 +4,7 @@ using Pansynchro.Core.DataDict;
 
 namespace Pansynchro.Core.CustomTypes
 {
-	public interface ICustomType
+	public interface IProtocolCustomType
 	{
 		string Name { get; }
 		TypeTag Type { get; }

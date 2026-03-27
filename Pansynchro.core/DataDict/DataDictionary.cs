@@ -143,6 +143,7 @@ namespace Pansynchro.Core.DataDict
 	public enum TypeTag
 	{
 		None, // represents NULL literals
+		Unknown,
 		Unstructured,
 		Char,
 		Varchar,

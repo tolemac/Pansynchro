@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading.Tasks;
 
 using Pansynchro.Core;
+using Pansynchro.Core.CustomTypes;
 using Pansynchro.Core.DataDict;
 using Pansynchro.Core.Readers;
 
@@ -13,6 +14,8 @@ namespace Pansynchro.Connectors.TextFile.CSV
 {
 	public class CsvReader : IReader, ISourcedConnector, IRandomStreamReader
 	{
+		public string Provider => CsvConnector.ProviderName;
+
 		private readonly string _conf;
 		private IDataSource? _source;
 
@@ -31,11 +34,17 @@ namespace Pansynchro.Connectors.TextFile.CSV
 			async IAsyncEnumerable<DataStream> Impl()
 			{
 				await foreach (var (name, reader) in _source.GetTextAsync()) {
-					var csvReader = CreateReader(reader);
+					var streamName = StreamDescription.Parse(name);
+					var data = new DataStream(streamName, StreamSettings.None, CreateReader(reader));
 					try {
-						yield return new DataStream(StreamDescription.Parse(name), StreamSettings.None, csvReader);
+						if (source.HasStream(streamName.ToString())) {
+							var stream = source.GetStream(streamName.ToString());
+							yield return CustomTypeAccessorTransformations.ApplyForRead(data, stream, Provider);
+						} else {
+							yield return data;
+						}
 					} finally {
-						csvReader.Dispose();
+						data.Reader.Dispose();
 					}
 				}
 			}
@@ -51,7 +60,8 @@ namespace Pansynchro.Connectors.TextFile.CSV
 			}
 			var stream = source.GetStream(name);
 			var readers = _source.GetTextAsync(name).Select(r => CreateReader(r));
-			return Task.FromResult<DataStream>(new(stream.Name, StreamSettings.None, new GroupingReader(readers)));
+			var data = new DataStream(stream.Name, StreamSettings.None, new GroupingReader(readers));
+			return Task.FromResult(CustomTypeAccessorTransformations.ApplyForRead(data, stream, Provider));
 		}
 
 		private CsvDataReader CreateReader(TextReader reader)

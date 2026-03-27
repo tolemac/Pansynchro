@@ -7,9 +7,10 @@ using Pansynchro.Core.Connectors;
 using Pansynchro.Core.DataDict;
 
 namespace Pansynchro.Protocol;
-internal class PansyncBArchiveConnector : ConnectorCore
+public class PansyncBArchiveConnector : ConnectorCore
 {
-	public override string Name => "PansyncBArchive";
+	public static string ProviderName => "PansyncBArchive";
+	public override string Name => ProviderName;
 
 	public override Capabilities Capabilities => Capabilities.Reader | Capabilities.Writer;
 

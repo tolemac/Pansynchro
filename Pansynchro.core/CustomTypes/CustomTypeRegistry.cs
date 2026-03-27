@@ -6,17 +6,29 @@ namespace Pansynchro.Core.CustomTypes
 {
 	public static class CustomTypeRegistry
 	{
-		private static Dictionary<TypeTag, ICustomType> _registry = new();
+		private static Dictionary<TypeTag, IProtocolCustomType> _protocolRegistry = new();
+		private static Dictionary<(TypeTag type, string provider), ICustomTypeAccessor> _accessorRegistry = new();
 
-		public static void RegisterType(ICustomType type)
+		public static void RegisterProtocolType(IProtocolCustomType type)
 		{
 			var tag = type.Type;
-			_registry.Add(tag, type);
+			_protocolRegistry.Add(tag, type);
 		}
 
-		public static ICustomType? GetType(TypeTag type)
+		public static IProtocolCustomType? GetProtocolType(TypeTag type)
 		{
-			_registry.TryGetValue(type, out var result);
+			_protocolRegistry.TryGetValue(type, out var result);
+			return result;
+		}
+
+		public static void RegisterTypeAccessor(ICustomTypeAccessor type)
+		{
+			_accessorRegistry[(type.Type, type.Provider.ToUpperInvariant())] = type;
+		}
+
+		public static ICustomTypeAccessor? GetTypeAccessor(TypeTag type, string provider)
+		{
+			_accessorRegistry.TryGetValue((type, provider.ToUpperInvariant()), out var result);
 			return result;
 		}
 	}

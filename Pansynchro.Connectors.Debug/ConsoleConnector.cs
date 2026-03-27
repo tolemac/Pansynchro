@@ -10,7 +10,8 @@ namespace Pansynchro.Connectors.Debug
 {
 	public class ConsoleConnector : ConnectorCore
 	{
-		public override string Name => "Console";
+		public static string ProviderName => "Console";
+		public override string Name => ProviderName;
 
 		public override Capabilities Capabilities => Capabilities.Writer;
 

@@ -6,12 +6,15 @@ using System.Threading.Tasks;
 using ExcelDataReader;
 
 using Pansynchro.Core;
+using Pansynchro.Core.CustomTypes;
 using Pansynchro.Core.DataDict;
 
 namespace Pansynchro.Connectors.Excel
 {
 	public class ExcelReader : IReader, ISourcedConnector
 	{
+		public string Provider => ExcelConnector.ProviderName;
+
 		private readonly string _conf;
 		private IDataSource? _source;
 
@@ -28,7 +31,13 @@ namespace Pansynchro.Connectors.Excel
 			await foreach (var (name, stream) in _source.GetDataAsync()) {
 				using var excelReader = ExcelReaderFactory.CreateReader(stream);
 				do {
-					yield return new DataStream(new(name, excelReader.CodeName), StreamSettings.None, new ExcelReaderWrapper(excelReader));
+					var streamName = new StreamDescription(name, excelReader.CodeName);
+					var data = new DataStream(streamName, StreamSettings.None, new ExcelReaderWrapper(excelReader));
+					if (source.HasStream(streamName.ToString())) {
+						yield return CustomTypeAccessorTransformations.ApplyForRead(data, source.GetStream(streamName.ToString()), Provider);
+					} else {
+						yield return data;
+					}
 				} while (excelReader.NextResult());
 			}
 		}

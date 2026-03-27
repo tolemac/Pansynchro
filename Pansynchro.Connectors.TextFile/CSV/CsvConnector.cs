@@ -9,7 +9,8 @@ namespace Pansynchro.Connectors.TextFile.CSV
 {
 	public class CsvConnector : ConnectorCore
 	{
-		public override string Name => "CSV";
+		public static string ProviderName => "CSV";
+		public override string Name => ProviderName;
 
 		public override Capabilities Capabilities => Capabilities.ALL;
 

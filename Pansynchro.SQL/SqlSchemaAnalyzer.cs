@@ -144,6 +144,12 @@ namespace Pansynchro.SQL
 
 		protected abstract (StreamDescription table, string column) BuildPkDefintion(IDataReader reader);
 
+		protected static TypeTag UnknownSqlType(string source, string sqlTypeName)
+		{
+			EventLog.Instance.AddWarningEvent($"Unknown SQL data type '{sqlTypeName}' in {source}. Assigning TypeTag.Unknown.");
+			return TypeTag.Unknown;
+		}
+
 		protected static IEnumerable<StreamDescription[]> OrderDeps(
 			List<StreamDescription> names, List<KeyValuePair<StreamDescription, StreamDescription>> deps)
 		{
