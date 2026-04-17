@@ -221,7 +221,7 @@ order by TableName";
 
 		private IFieldType BuildFieldType(DataRow row)
 		{
-			var typeName = (string)row["DataTypeName"];
+			var typeName = NormalizeDataTypeName((string)row["DataTypeName"]);
 			if (_customTypes.TryGetValue(typeName, out var cTyp)) {
 				return new CustomField(typeName, cTyp, false);
 			}
@@ -229,6 +229,21 @@ order by TableName";
 			var info = HasInfo(type) ? TypeInfo(type, row) : null;
 			var nullable = (bool)row["AllowDBNull"];
 			return new BasicField(type, nullable, info, false);
+		}
+
+		private string NormalizeDataTypeName(string fullTypeName)
+		{
+			if (string.IsNullOrEmpty(fullTypeName)) return fullTypeName;
+
+			string[] parts = fullTypeName.Split(new char[] { '.' }, StringSplitOptions.RemoveEmptyEntries);
+						
+			if (parts.Length == 1 ||
+				(parts.Length == 2 && parts[0].Equals("sys", StringComparison.OrdinalIgnoreCase))
+				) {
+				return fullTypeName;
+			}
+
+			return string.Join(".", parts, 1, parts.Length - 1);
 		}
 
 		private static string? TypeInfo(TypeTag type, DataRow row) => type switch {
